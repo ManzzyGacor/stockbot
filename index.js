@@ -2,11 +2,11 @@ const { Telegraf, Markup } = require('telegraf');
 const fs = require('fs');
 
 // Konfigurasi
-const BOT_TOKEN = 'TOKEN_BOT_TELEGRAM_KAMU';
-const OWNER_ID = 123456789; // Ganti dengan ID Telegram kamu
+const BOT_TOKEN = '8684515294:AAFrzbkh-n-YKcotYUt1RMS6Muf3I-fGusk';
+const OWNER_ID = 7533630775; // Ganti dengan ID Telegram kamu
 const QRIS_URL = 'https://raw.githubusercontent.com/ManzzyGacor/Urlmanzzy/main/file_1776583050697_289.jpg'; // URL gambar QRIS
 const KONTAK_OWNER = 't.me/Manjikeduwa';
-const LOG_CHAT_ID = -1001234567890; // Ganti dengan ID Group/Channel Log kamu
+const LOG_CHAT_ID = -1003349106139; // Ganti dengan ID Group/Channel Log kamu
 
 const bot = new Telegraf(BOT_TOKEN);
 
