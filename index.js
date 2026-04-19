@@ -3,23 +3,37 @@ const fs = require('fs');
 
 // Konfigurasi
 const BOT_TOKEN = '8684515294:AAFrzbkh-n-YKcotYUt1RMS6Muf3I-fGusk';
-const OWNER_ID = 7533630775; // Ganti dengan ID Telegram kamu
-const QRIS_URL = 'https://raw.githubusercontent.com/ManzzyGacor/Urlmanzzy/main/file_1776583050697_289.jpg'; // URL gambar QRIS
+const OWNER_ID = 7533630775;
+const QRIS_URL = 'https://raw.githubusercontent.com/ManzzyGacor/Urlmanzzy/main/file_1776583050697_289.jpg';
 const KONTAK_OWNER = 't.me/Manjikeduwa';
-const LOG_CHAT_ID = -1003349106139; // Ganti dengan ID Group/Channel Log kamu
+const LOG_CHAT_ID = -1003349106139;
 
 const bot = new Telegraf(BOT_TOKEN);
 
-// Inisialisasi Database (Simple JSON)
+// Inisialisasi Database
 const dbFile = './database.json';
 let db = { users: {}, stocks: {} };
 
 if (fs.existsSync(dbFile)) {
     db = JSON.parse(fs.readFileSync(dbFile));
 }
-const saveDb = () => fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
 
-// Helper: Nama Role
+// 🧹 AUTO CLEANUP KATEGORI YANG SALAH
+const kategoriValid = ["alight motion", "viu lifetime"];
+for (let key in db.stocks) {
+    if (!kategoriValid.includes(key)) {
+        delete db.stocks[key]; // Hapus kategori nyasar dari database
+    }
+}
+// Pastikan kategori wajib ada
+kategoriValid.forEach(cat => {
+    if (!db.stocks[cat]) db.stocks[cat] = [];
+});
+
+const saveDb = () => fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
+saveDb(); // Save hasil cleanup
+
+// Helper Fungsi
 function getRoleName(role) {
     switch (role) {
         case 1: return 'Cupu (Member)';
@@ -30,309 +44,11 @@ function getRoleName(role) {
     }
 }
 
-// Command: /start
-// Helper untuk menghitung total stok
 function getStockStats() {
     const am = db.stocks["alight motion"] ? db.stocks["alight motion"].length : 0;
     const viu = db.stocks["viu lifetime"] ? db.stocks["viu lifetime"].length : 0;
     return { am, viu };
 }
-
-const showMainMenu = (ctx) => {
-    const userId = ctx.from.id.toString();
-    
-    // Inisialisasi user jika belum ada
-    if (!db.users[userId]) {
-        db.users[userId] = { role: 1, lastAmbil: 0, lastAmbil10: 0 };
-    }
-
-    // Auto-admin
-    const username = ctx.from.username ? ctx.from.username.toLowerCase() : '';
-    if (username === 'man' || username === 'manjikeduwa') {
-        db.users[userId].role = 4; 
-    }
-
-    const user = db.users[userId];
-    const roleName = getRoleName(user.role);
-    const { am, viu } = getStockStats();
-
-    // Setup array tombol bawaan
-    let buttons = [
-        [Markup.button.callback('🛒 Cek & Ambil Akun', 'menu_ambil')],
-        [Markup.button.callback('🚀 Upgrade Role', 'menu_upgrade')],
-        [Markup.button.callback('👨‍💻 Owner / Bantuan', 'menu_bantuan')]
-    ];
-
-    // Tambahkan tombol ADMIN PANEL jika user adalah Raja 👑
-    if (user.role === 4) {
-        buttons.push([Markup.button.callback('⚙️ ADMIN PANEL ⚙️', 'admin_panel')]);
-    }
-
-    let text = `╔════════════════════╗\n`;
-    text += `   ✨ *MANZZY ID STOCK BOT* ✨\n`;
-    text += `╚════════════════════╝\n\n`;
-    text += `👤 *User:* ${ctx.from.first_name}\n`;
-    text += `🆔 *ID:* \`${userId}\`\n`;
-    text += `👑 *Role:* ${roleName}\n\n`;
-
-    text += `📊 *STATISTIK STOK:*\n`;
-    text += `• Alight Motion: [ ${am} ]\n`;
-    
-    // Informasi stok Viu disembunyikan jika bukan VIP/Owner
-    if (user.role >= 3) {
-        text += `• Viu Lifetime: [ ${viu} ]\n`;
-    } else {
-        text += `• Viu Lifetime: [ 🔒 Khusus VIP ]\n`;
-    }
-
-    text += `\n💰 *DAFTAR HARGA UPGRADE:*\n`;
-    text += `• Member ➔ Reseller: *Rp 10.000*\n`;
-    text += `• Member ➔ VIP: *Rp 15.000*\n`;
-    text += `• Reseller ➔ VIP: *Rp 7.000*\n\n`;
-    text += `_Silakan pilih menu di bawah untuk transaksi:_`;
-
-    return ctx.reply(text, {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(buttons)
-    });
-};
-
-// Daftarkan Command
-bot.start(showMainMenu);
-bot.command('menu', showMainMenu);
-
-// Update juga bagian action menu_ambil agar bisa kembali ke menu utama
-bot.action('back_to_menu', (ctx) => {
-    ctx.deleteMessage().catch(() => {}); // Hapus pesan lama agar bersih dan anti-crash
-    showMainMenu(ctx);
-});
-
-// Daftarkan Command
-bot.start(showMainMenu);
-bot.command('menu', showMainMenu);
-
-// Update juga bagian action menu_ambil agar bisa kembali ke menu utama
-bot.action('back_to_menu', (ctx) => {
-    ctx.deleteMessage(); // Hapus pesan lama agar bersih
-    showMainMenu(ctx);
-});
-
-// Action: Upgrade Role
-bot.action('menu_upgrade', (ctx) => {
-    const userId = ctx.from.id.toString();
-    const role = db.users[userId].role;
-    
-    let buttons = [];
-    if (role === 1) {
-        buttons.push([Markup.button.callback('⬆️ Reseller (Rp 10.000)', 'pay_reseller')]);
-        buttons.push([Markup.button.callback('💎 Reseller VIP (Rp 15.000)', 'pay_vip_member')]);
-    } else if (role === 2) {
-        buttons.push([Markup.button.callback('💎 Upgrade VIP (Rp 7.000)', 'pay_vip_reseller')]);
-    } else {
-        return ctx.reply('Kamu sudah berada di role tertinggi (Reseller VIP) atau kamu adalah Raja 👑.');
-    }
-
-    ctx.reply('Pilih paket upgrade yang kamu inginkan:', Markup.inlineKeyboard(buttons));
-});
-
-// Action: Proses Pembayaran (Menampilkan QRIS)
-bot.action(/pay_/, (ctx) => {
-    const action = ctx.match.input;
-    let harga = '';
-    
-    if (action === 'pay_reseller') harga = 'Rp 10.000';
-    if (action === 'pay_vip_member') harga = 'Rp 15.000';
-    if (action === 'pay_vip_reseller') harga = 'Rp 7.000';
-
-    ctx.replyWithPhoto(QRIS_URL, {
-        caption: `💳 *Pembayaran Upgrade Role*\n\nSilakan scan QRIS di atas untuk melakukan pembayaran sebesar *${harga}*.\n\nJika sudah transfer, kirimkan bukti ke [Owner Bot](https://${KONTAK_OWNER}) beserta ID Telegram kamu: \`${ctx.from.id}\` untuk diproses.`,
-        parse_mode: 'Markdown'
-    });
-});
-
-// Action: Bantuan
-bot.action('menu_bantuan', (ctx) => {
-    ctx.reply(`Untuk bantuan atau konfirmasi pembayaran, hubungi: https://${KONTAK_OWNER}`);
-});
-
-// Command Owner: /setrole <1-4> <id_telegram>
-bot.command('setrole', (ctx) => {
-    const userId = ctx.from.id.toString();
-    if (db.users[userId].role !== 4) return ctx.reply('Akses ditolak! Cuma Raja 👑 yang bisa pakai ini.');
-
-    const args = ctx.message.text.split(' ');
-    if (args.length < 3) return ctx.reply('Format salah!\nGunakan: `/setrole <1/2/3/4> <id_telegram>`', {parse_mode: 'Markdown'});
-
-    const targetRole = parseInt(args[1]);
-    const targetId = args[2];
-
-    if (![1, 2, 3, 4].includes(targetRole)) return ctx.reply('Role tidak valid. (1=Member, 2=Reseller, 3=VIP, 4=Owner)');
-    if (!db.users[targetId]) return ctx.reply('User ID tersebut belum pernah start bot ini.');
-
-    db.users[targetId].role = targetRole;
-    saveDb();
-    ctx.reply(`Sukses! Role user \`${targetId}\` telah diubah menjadi *${getRoleName(targetRole)}*.`, {parse_mode: 'Markdown'});
-});
-
-// Command Owner: /addstock <kategori> <data_akun>
-bot.command('addstock', (ctx) => {
-    const userId = ctx.from.id.toString();
-    if (db.users[userId].role !== 4) return ctx.reply('Akses ditolak!');
-
-    const args = ctx.message.text.split(' ');
-    if (args.length < 3) return ctx.reply('Format salah!\nGunakan: `/addstock <kategori> <data_akun>`\nContoh: `/addstock am user:pass`', {parse_mode: 'Markdown'});
-
-    const kategori = args[1].toLowerCase();
-    const dataAkun = args.slice(2).join(' '); // Menggabungkan spasi jika data akun panjang
-
-    if (!db.stocks[kategori]) db.stocks[kategori] = [];
-    db.stocks[kategori].push(dataAkun);
-    saveDb();
-
-    ctx.reply(`✅ Berhasil menambahkan stock ke kategori *${kategori}*.\nTotal stock sekarang: ${db.stocks[kategori].length}`, {parse_mode: 'Markdown'});
-});
-
-// Action: Lihat Stock (Informasi Kategori)
-bot.action('menu_ambil', (ctx) => {
-    let msg = '🛒 *Daftar Kategori Akun Tersedia*\n\n';
-    const categories = Object.keys(db.stocks);
-    
-    if (categories.length === 0) {
-        msg += 'Belum ada stock yang tersedia.';
-    } else {
-        categories.forEach(cat => {
-            msg += `- *${cat}* (Sisa: ${db.stocks[cat].length})\n`;
-        });
-        msg += '\n*Cara Ambil:*\nKetik `/ambil <kategori>` (untuk 1 akun)\nKetik `/ambil10 <kategori>` (khusus VIP ambil 10)';
-    }
-    ctx.reply(msg, { parse_mode: 'Markdown' });
-});
-
-// Database awal dengan kategori yang sudah ditentukan
-// Jika database.json belum ada, bot akan pakai template ini
-if (!fs.existsSync(dbFile)) {
-    db = { 
-        users: {}, 
-        stocks: {
-            "alight motion": [],
-            "viu lifetime": []
-        } 
-    };
-    saveDb();
-}
-
-// Action: Lihat Stock & Munculin Button (Disesuaikan dengan Role)
-bot.action('menu_ambil', (ctx) => {
-    const userId = ctx.from.id.toString();
-    const user = db.users[userId];
-
-    if (user.role === 1) {
-        return ctx.answerCbQuery('❌ Member Cupu tidak bisa ambil stock! Upgrade ke Reseller dulu.', { show_alert: true });
-    }
-
-    let buttons = [];
-    const categories = Object.keys(db.stocks);
-
-    categories.forEach(cat => {
-        const sisa = db.stocks[cat].length;
-        
-        // LOGIKA AKSES KATEGORI:
-        // Viu Lifetime khusus Reseller VIP (Role 3) atau Owner (Role 4)
-        if (cat.toLowerCase() === 'viu lifetime') {
-            if (user.role < 3) return; // Skip jika bukan VIP/Owner
-        }
-
-        if (sisa > 0) {
-            buttons.push([Markup.button.callback(`🛒 Ambil ${cat.toUpperCase()} (Sisa: ${sisa})`, `take1_${cat}`)]);
-            
-            // Tombol Borong 10 (Hanya untuk VIP/Owner dan stok cukup)
-            if (user.role >= 3 && sisa >= 10) {
-                buttons.push([Markup.button.callback(`🔥 Borong 10 ${cat.toUpperCase()}`, `take10_${cat}`)]);
-            }
-        } else {
-            // Jika stok kosong tetap tampilkan tapi beri info kosong
-            buttons.push([Markup.button.callback(`🚫 ${cat.toUpperCase()} (Kosong)`, `empty_stock`)]);
-        }
-    });
-
-    if (buttons.length === 0) {
-        return ctx.editMessageText('🛒 *Sistem Akun*\n\nMaaf, belum ada stok yang tersedia untuk level role kamu.', { parse_mode: 'Markdown' });
-    }
-
-    ctx.editMessageText('🛒 *Pilih kategori akun:*\n\nKlik tombol di bawah untuk mengambil:', {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(buttons)
-    });
-});
-
-// Action: Handle Stok Kosong
-bot.action('empty_stock', (ctx) => {
-    ctx.answerCbQuery('❌ Stok untuk kategori ini sedang habis!', { show_alert: true });
-});
-
-// Action: Tombol Ambil 1 Akun
-bot.action(/^take1_(.+)$/, (ctx) => {
-    const kategori = ctx.match[1];
-    const userId = ctx.from.id.toString();
-    const user = db.users[userId];
-
-    // Cek ulang keamanan role untuk Viu Lifetime
-    if (kategori.toLowerCase() === 'viu lifetime' && user.role < 3) {
-        return ctx.answerCbQuery('❌ Khusus Reseller VIP!', { show_alert: true });
-    }
-
-    if (!db.stocks[kategori] || db.stocks[kategori].length < 1) {
-        return ctx.answerCbQuery('❌ Stok habis!', { show_alert: true });
-    }
-
-    const now = Date.now();
-    // Cooldown Reseller biasa (Role 2) = 1 Menit
-    if (user.role === 2) { 
-        const cooldown = 60 * 1000; 
-        if (now - user.lastAmbil < cooldown) {
-            const sisa = Math.ceil((cooldown - (now - user.lastAmbil)) / 1000);
-            return ctx.answerCbQuery(`⏳ Tunggu ${sisa} detik lagi.`, { show_alert: true });
-        }
-        user.lastAmbil = now;
-    }
-
-    const diambil = db.stocks[kategori].shift(); 
-    saveDb();
-
-    ctx.answerCbQuery(`✅ Akun ${kategori.toUpperCase()} berhasil diambil!`);
-    ctx.reply(`✅ *DATA AKUN ${kategori.toUpperCase()}*\n\n\`${diambil}\`\n\n_Stok otomatis dihapus dari database._`, { parse_mode: 'Markdown' });
-});
-
-// Action: Tombol Ambil 10 Akun (Khusus VIP)
-bot.action(/^take10_(.+)$/, (ctx) => {
-    const kategori = ctx.match[1];
-    const userId = ctx.from.id.toString();
-    const user = db.users[userId];
-
-    if (user.role < 3) return ctx.answerCbQuery('❌ Hanya untuk VIP!', { show_alert: true });
-    if (db.stocks[kategori].length < 10) return ctx.answerCbQuery('❌ Stok tidak cukup 10.', { show_alert: true });
-
-    const now = Date.now();
-    // Cooldown Borong VIP (Role 3) = 5 Menit
-    if (user.role === 3) { 
-        const cooldown = 5 * 60 * 1000; 
-        if (now - user.lastAmbil10 < cooldown) {
-            const sisaMnt = Math.ceil((cooldown - (now - user.lastAmbil10)) / 1000 / 60);
-            return ctx.answerCbQuery(`⏳ Cooldown! Tunggu ${sisaMnt} menit lagi.`, { show_alert: true });
-        }
-        user.lastAmbil10 = now;
-    }
-
-    const diambil = db.stocks[kategori].splice(0, 10);
-    saveDb();
-
-    ctx.answerCbQuery(`✅ Berhasil memborong 10 akun!`);
-    let msgText = `🔥 *BORONG 10 AKUN ${kategori.toUpperCase()}*\n\n`;
-    diambil.forEach((akun, i) => {
-        msgText += `${i + 1}. \`${akun}\`\n`;
-    });
-    ctx.reply(msgText, { parse_mode: 'Markdown' });
-});
 
 async function sendLog(ctx, message) {
     const time = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
@@ -341,7 +57,6 @@ async function sendLog(ctx, message) {
                        `🆔 *ID:* \`${ctx.from.id}\`\n` +
                        `⏰ *Waktu:* ${time}\n` +
                        `📝 *Aksi:* ${message}`;
-    
     try {
         await ctx.telegram.sendMessage(LOG_CHAT_ID, logMessage, { parse_mode: 'Markdown' });
     } catch (err) {
@@ -349,82 +64,111 @@ async function sendLog(ctx, message) {
     }
 }
 
-// --- ADMIN PANEL ---
-bot.action('admin_panel', (ctx) => {
+// --- MENU UTAMA ---
+const showMainMenu = (ctx) => {
     const userId = ctx.from.id.toString();
-    if (db.users[userId].role !== 4) return ctx.answerCbQuery('Akses Ditolak!', { show_alert: true });
-
-    const totalUser = Object.keys(db.users).length;
-    const { am, viu } = getStockStats();
-
-    let text = `⚙️ *ADMIN PANEL - MANZZY ID*\n\n` +
-               `👥 Total User: ${totalUser}\n` +
-               `📦 Total Stok AM: ${am}\n` +
-               `📦 Total Stok Viu: ${viu}\n\n` +
-               `*Quick Command Owner:* \n` +
-               `• \`/setrole <role> <id>\`\n` +
-               `• \`/addstock <kategori> <data>\`\n` +
-               `• \`/broadcast <pesan>\``;
-
-    ctx.editMessageText(text, {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-            [Markup.button.callback('📊 Cek Detail User', 'admin_detail_user')],
-            [Markup.button.callback('⬅️ Kembali', 'back_to_menu')]
-        ])
-    });
-});
-
-// --- INTEGRASI LOG KE AKSI ---
-
-// Log saat setrole
-const originalSetRole = bot.command('setrole', async (ctx) => {
-    const userId = ctx.from.id.toString();
-    if (db.users[userId].role !== 4) return;
-
-    const args = ctx.message.text.split(' ');
-    if (args.length < 3) return ctx.reply('Format: /setrole <1-4> <id>');
     
-    const targetId = args[2];
-    const newRole = args[1];
-    
-    // ... (logika setrole kamu yang lama) ...
-    
-    await sendLog(ctx, `Mengubah Role User \`${targetId}\` menjadi *${getRoleName(parseInt(newRole))}*`);
-    ctx.reply(`✅ Sukses mengubah role ${targetId}`);
-});
+    if (!db.users[userId]) {
+        db.users[userId] = { role: 1, lastAmbil: 0, lastAmbil10: 0, hasTakenViu: false };
+    }
 
-// Log saat addstock
-bot.command('addstock', async (ctx) => {
-    const userId = ctx.from.id.toString();
-    if (db.users[userId].role !== 4) return;
+    const username = ctx.from.username ? ctx.from.username.toLowerCase() : '';
+    if (username === 'man' || username === 'manjikeduwa') {
+        db.users[userId].role = 4; 
+    }
 
-    const args = ctx.message.text.split(' ');
-    const kategori = args[1];
-    
-    // ... (logika addstock kamu yang lama) ...
-    
-    await sendLog(ctx, `Menambahkan stok ke kategori *${kategori}*`);
-    ctx.reply(`✅ Stok ${kategori} ditambahkan.`);
-});
-
-// Log saat User Ambil Akun
-// Tambahkan sendLog di dalam action take1 dan take10
-// Contoh di take1:
-bot.action(/^take1_(.+)$/, async (ctx) => {
-    const kategori = ctx.match[1];
-    // ... (logika ambil akun kamu) ...
-
-    const diambil = db.stocks[kategori].shift(); 
     saveDb();
 
-    // KIRIM LOG
-    await sendLog(ctx, `Mengambil 1 akun *${kategori.toUpperCase()}*`);
-    
-    ctx.reply(`✅ *DATA AKUN ${kategori.toUpperCase()}*\n\n\`${diambil}\``, { parse_mode: 'Markdown' });
+    const user = db.users[userId];
+    const roleName = getRoleName(user.role);
+    const { am, viu } = getStockStats();
+
+    let buttons = [
+        [Markup.button.callback('🛒 Cek & Ambil Akun', 'menu_ambil')],
+        [Markup.button.callback('🚀 Upgrade Role', 'menu_upgrade')],
+        [Markup.button.callback('👨‍💻 Owner / Bantuan', 'menu_bantuan')]
+    ];
+
+    if (user.role === 4) {
+        buttons.push([Markup.button.callback('⚙️ ADMIN PANEL ⚙️', 'admin_panel')]);
+    }
+
+    let text = `╔════════════════════╗\n` +
+               `   ✨ *MANZZY ID STOCK BOT* ✨\n` +
+               `╚════════════════════╝\n\n` +
+               `👤 *User:* ${ctx.from.first_name}\n` +
+               `🆔 *ID:* \`${userId}\`\n` +
+               `👑 *Role:* ${roleName}\n\n` +
+               `📊 *STATISTIK STOK:*\n` +
+               `• Alight Motion: [ ${am} ]\n` +
+               `• Viu Lifetime: [ ${user.role >= 3 ? viu : '🔒 Khusus VIP'} ]\n\n` +
+               `💰 *DAFTAR HARGA UPGRADE:*\n` +
+               `• Member ➔ Reseller: *Rp 10.000*\n` +
+               `• Member ➔ VIP: *Rp 15.000*\n` +
+               `• Reseller ➔ VIP: *Rp 7.000*\n\n` +
+               `_Silakan pilih menu di bawah:_`;
+
+    return ctx.reply(text, {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard(buttons)
+    });
+};
+
+bot.start(showMainMenu);
+bot.command('menu', showMainMenu);
+
+bot.action('back_to_menu', (ctx) => {
+    ctx.deleteMessage().catch(() => {}); 
+    showMainMenu(ctx);
 });
 
-// Broadcast Message (Hanya Owner)
+// --- COMMAND OWNER ---
+
+// Format baru: /addstock am data ATAU /addstock viu data
+bot.command('addstock', async (ctx) => {
+    const userId = ctx.from.id.toString();
+    if (db.users[userId].role !== 4) return ctx.reply('Akses ditolak!');
+
+    const args = ctx.message.text.trim().split(' ');
+    if (args.length < 3) {
+        return ctx.reply('❌ Format salah!\nGunakan: `/addstock <am/viu> <data_akun>`\nContoh: `/addstock am user:pass`', {parse_mode: 'Markdown'});
+    }
+
+    const kode = args[1].toLowerCase();
+    const dataAkun = args.slice(2).join(' ');
+
+    let kategoriSebenarnya = '';
+    if (kode === 'am' || kode === 'alight') kategoriSebenarnya = 'alight motion';
+    else if (kode === 'viu') kategoriSebenarnya = 'viu lifetime';
+    else return ctx.reply('❌ Kategori tidak dikenali! Hanya bisa pakai `am` atau `viu`.');
+
+    db.stocks[kategoriSebenarnya].push(dataAkun);
+    saveDb();
+
+    await sendLog(ctx, `Menambahkan stok ke kategori *${kategoriSebenarnya}*`);
+    ctx.reply(`✅ Berhasil tambah stok *${kategoriSebenarnya}*.\nTotal sekarang: ${db.stocks[kategoriSebenarnya].length}`, {parse_mode: 'Markdown'});
+});
+
+bot.command('setrole', async (ctx) => {
+    const userId = ctx.from.id.toString();
+    if (db.users[userId].role !== 4) return ctx.reply('Akses ditolak!');
+
+    const args = ctx.message.text.split(' ');
+    if (args.length < 3) return ctx.reply('Format: `/setrole <1-4> <id>`', {parse_mode: 'Markdown'});
+
+    const targetRole = parseInt(args[1]);
+    const targetId = args[2];
+
+    if (![1, 2, 3, 4].includes(targetRole)) return ctx.reply('Role tidak valid (1-4).');
+    if (!db.users[targetId]) return ctx.reply('User ID belum terdaftar di bot.');
+
+    db.users[targetId].role = targetRole;
+    saveDb();
+
+    await sendLog(ctx, `Mengubah Role User \`${targetId}\` menjadi *${getRoleName(targetRole)}*`);
+    ctx.reply(`✅ Role user \`${targetId}\` sukses diubah jadi *${getRoleName(targetRole)}*.`, {parse_mode: 'Markdown'});
+});
+
 bot.command('broadcast', async (ctx) => {
     const userId = ctx.from.id.toString();
     if (db.users[userId].role !== 4) return;
@@ -439,16 +183,207 @@ bot.command('broadcast', async (ctx) => {
         try {
             await ctx.telegram.sendMessage(id, `📢 *PENGUMUMAN DARI OWNER*\n\n${pesan}`, { parse_mode: 'Markdown' });
             success++;
-        } catch (e) { /* skip if blocked */ }
+        } catch (e) {}
     }
 
     ctx.reply(`✅ Broadcast terkirim ke ${success} user.`);
     await sendLog(ctx, `Mengirim broadcast ke ${success} user.`);
 });
 
+// --- ACTION TOMBOL UTAMA ---
+
+bot.action('menu_upgrade', (ctx) => {
+    const userId = ctx.from.id.toString();
+    const role = db.users[userId].role;
+    
+    let buttons = [];
+    if (role === 1) {
+        buttons.push([Markup.button.callback('⬆️ Reseller (Rp 10.000)', 'pay_reseller')]);
+        buttons.push([Markup.button.callback('💎 Reseller VIP (Rp 15.000)', 'pay_vip_member')]);
+    } else if (role === 2) {
+        buttons.push([Markup.button.callback('💎 Upgrade VIP (Rp 7.000)', 'pay_vip_reseller')]);
+    } else {
+        return ctx.answerCbQuery('Kamu sudah berada di role tertinggi!', {show_alert: true});
+    }
+
+    ctx.editMessageText('Pilih paket upgrade yang kamu inginkan:', {
+        ...Markup.inlineKeyboard([
+            ...buttons,
+            [Markup.button.callback('⬅️ Kembali', 'back_to_menu')]
+        ])
+    });
+});
+
+bot.action(/pay_/, (ctx) => {
+    const action = ctx.match.input;
+    let harga = '';
+    
+    if (action === 'pay_reseller') harga = 'Rp 10.000';
+    if (action === 'pay_vip_member') harga = 'Rp 15.000';
+    if (action === 'pay_vip_reseller') harga = 'Rp 7.000';
+
+    ctx.deleteMessage().catch(() => {});
+    ctx.replyWithPhoto(QRIS_URL, {
+        caption: `💳 *Pembayaran Upgrade Role*\n\nSilakan scan QRIS di atas sebesar *${harga}*.\n\nKirim bukti ke [Owner Bot](https://${KONTAK_OWNER}) beserta ID Telegram kamu: \`${ctx.from.id}\`.`,
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([[Markup.button.callback('⬅️ Kembali ke Menu', 'back_to_menu')]])
+    });
+});
+
+bot.action('menu_bantuan', (ctx) => {
+    ctx.editMessageText(`👨‍💻 Untuk bantuan atau konfirmasi pembayaran, hubungi Owner:\nhttps://${KONTAK_OWNER}`, {
+        disable_web_page_preview: true,
+        ...Markup.inlineKeyboard([[Markup.button.callback('⬅️ Kembali', 'back_to_menu')]])
+    });
+});
+
+bot.action('admin_panel', (ctx) => {
+    const userId = ctx.from.id.toString();
+    if (db.users[userId].role !== 4) return ctx.answerCbQuery('Akses Ditolak!', { show_alert: true });
+
+    const totalUser = Object.keys(db.users).length;
+    const { am, viu } = getStockStats();
+
+    let text = `⚙️ *ADMIN PANEL - MANZZY ID*\n\n` +
+               `👥 Total User: ${totalUser}\n` +
+               `📦 Total Stok AM: ${am}\n` +
+               `📦 Total Stok Viu: ${viu}\n\n` +
+               `*Quick Command Owner:* \n` +
+               `• \`/setrole <role> <id>\`\n` +
+               `• \`/addstock <am/viu> <data>\`\n` +
+               `• \`/broadcast <pesan>\``;
+
+    ctx.editMessageText(text, {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+            [Markup.button.callback('⬅️ Kembali', 'back_to_menu')]
+        ])
+    });
+});
+
+// --- MENU AMBIL & AMBIL AKUN ---
+
+bot.action('menu_ambil', (ctx) => {
+    const userId = ctx.from.id.toString();
+    const user = db.users[userId];
+
+    if (user.role === 1) {
+        return ctx.answerCbQuery('❌ Member Cupu tidak bisa ambil stock! Upgrade ke Reseller dulu.', { show_alert: true });
+    }
+
+    let buttons = [];
+    const categories = ["alight motion", "viu lifetime"];
+
+    categories.forEach(cat => {
+        const sisa = db.stocks[cat] ? db.stocks[cat].length : 0;
+        
+        if (cat === 'viu lifetime') {
+            if (user.role < 3) return; // VIP/Owner Only
+            if (user.hasTakenViu) {
+                buttons.push([Markup.button.callback(`🚫 VIU LIFETIME (Sudah Klaim)`, `already_claimed`)]);
+                return;
+            }
+        }
+
+        if (sisa > 0) {
+            buttons.push([Markup.button.callback(`🛒 Ambil ${cat.toUpperCase()} (Sisa: ${sisa})`, `take1_${cat}`)]);
+            if (user.role >= 3 && sisa >= 10 && cat !== 'viu lifetime') {
+                buttons.push([Markup.button.callback(`🔥 Borong 10 ${cat.toUpperCase()}`, `take10_${cat}`)]);
+            }
+        } else {
+            buttons.push([Markup.button.callback(`🚫 ${cat.toUpperCase()} (Kosong)`, `empty_stock`)]);
+        }
+    });
+
+    if (buttons.length === 0) {
+        return ctx.editMessageText('🛒 *Sistem Akun*\n\nMaaf, belum ada stok tersedia.', { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback('⬅️ Kembali', 'back_to_menu')]]) });
+    }
+
+    buttons.push([Markup.button.callback('⬅️ Kembali ke Menu', 'back_to_menu')]);
+
+    ctx.editMessageText('🛒 *Pilih kategori akun:*\n\nKlik tombol di bawah:', {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard(buttons)
+    });
+});
+
+bot.action('empty_stock', (ctx) => ctx.answerCbQuery('❌ Stok sedang habis!', { show_alert: true }));
+bot.action('already_claimed', (ctx) => ctx.answerCbQuery('❌ Kamu sudah pernah mengambil Viu Lifetime (Cuma 1x)!', { show_alert: true }));
+
+bot.action(/^take1_(.+)$/, async (ctx) => {
+    const kategori = ctx.match[1];
+    const userId = ctx.from.id.toString();
+    const user = db.users[userId];
+
+    if (kategori === 'viu lifetime') {
+        if (user.role < 3) return ctx.answerCbQuery('❌ Khusus VIP!', { show_alert: true });
+        if (user.hasTakenViu) return ctx.answerCbQuery('❌ Jatah Viu habis!', { show_alert: true });
+    }
+
+    if (!db.stocks[kategori] || db.stocks[kategori].length < 1) {
+        return ctx.answerCbQuery('❌ Stok habis!', { show_alert: true });
+    }
+
+    const now = Date.now();
+    if (user.role === 2) { 
+        const cooldown = 60 * 1000; 
+        if (now - user.lastAmbil < cooldown) {
+            const sisa = Math.ceil((cooldown - (now - user.lastAmbil)) / 1000);
+            return ctx.answerCbQuery(`⏳ Tunggu ${sisa} detik lagi.`, { show_alert: true });
+        }
+        user.lastAmbil = now;
+    }
+
+    const diambil = db.stocks[kategori].shift(); 
+    if (kategori === 'viu lifetime') user.hasTakenViu = true;
+    saveDb();
+
+    await sendLog(ctx, `Mengambil 1 akun *${kategori.toUpperCase()}*`);
+    ctx.answerCbQuery(`✅ Berhasil!`);
+    
+    ctx.deleteMessage().catch(() => {});
+    ctx.reply(`✅ *DATA AKUN ${kategori.toUpperCase()}*\n\n\`${diambil}\``, { 
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([[Markup.button.callback('⬅️ Kembali ke Menu', 'back_to_menu')]])
+    });
+});
+
+bot.action(/^take10_(.+)$/, async (ctx) => {
+    const kategori = ctx.match[1];
+    const userId = ctx.from.id.toString();
+    const user = db.users[userId];
+
+    if (user.role < 3) return ctx.answerCbQuery('❌ Hanya untuk VIP!', { show_alert: true });
+    if (kategori === 'viu lifetime') return ctx.answerCbQuery('❌ Viu tidak bisa diborong!', { show_alert: true });
+    if (db.stocks[kategori].length < 10) return ctx.answerCbQuery('❌ Stok tidak cukup 10.', { show_alert: true });
+
+    const now = Date.now();
+    if (user.role === 3) { 
+        const cooldown = 5 * 60 * 1000; 
+        if (now - user.lastAmbil10 < cooldown) {
+            const sisaMnt = Math.ceil((cooldown - (now - user.lastAmbil10)) / 1000 / 60);
+            return ctx.answerCbQuery(`⏳ Tunggu ${sisaMnt} menit lagi.`, { show_alert: true });
+        }
+        user.lastAmbil10 = now;
+    }
+
+    const diambil = db.stocks[kategori].splice(0, 10);
+    saveDb();
+
+    await sendLog(ctx, `Memborong 10 akun *${kategori.toUpperCase()}*`);
+    ctx.answerCbQuery(`✅ Borong berhasil!`);
+    
+    let msgText = `🔥 *BORONG 10 AKUN ${kategori.toUpperCase()}*\n\n`;
+    diambil.forEach((akun, i) => { msgText += `${i + 1}. \`${akun}\`\n`; });
+
+    ctx.deleteMessage().catch(() => {});
+    ctx.reply(msgText, { 
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([[Markup.button.callback('⬅️ Kembali ke Menu', 'back_to_menu')]])
+    });
+});
+
 // Jalankan Bot
 bot.launch().then(() => console.log('Bot berhasil dijalankan!'));
-
-// Enable graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
