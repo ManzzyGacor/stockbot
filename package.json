@@ -1,0 +1,14 @@
+{
+  "name": "stockbot",
+  "version": "1.0.0",
+  "description": "Bot Telegram Stock Akun by Manzzy ID",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "Manzzy ID",
+  "license": "ISC",
+  "dependencies": {
+    "telegraf": "^4.16.0"
+  }
+}
